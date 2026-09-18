@@ -1,0 +1,23 @@
+{
+  "name": "gridwise",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "GridWise \u2014 LLM-assisted smart campus 24h energy optimization API (BUP CSE Fest 2026 preliminary)",
+  "main": "server/index.js",
+  "engines": {
+    "node": ">=22.9.0"
+  },
+  "scripts": {
+    "start": "node --env-file-if-exists=.env server/index.js",
+    "dev": "node --watch --env-file-if-exists=.env server/index.js",
+    "test": "node --test test/*.test.js",
+    "samples": "node --env-file-if-exists=.env scripts/run-public-samples.js",
+    "benchmark": "node --env-file-if-exists=.env scripts/benchmark.js"
+  },
+  "dependencies": {
+    "express": "^5.2.1",
+    "glpk.js": "^4.0.2",
+    "mongodb": "^6.21.0"
+  }
+}

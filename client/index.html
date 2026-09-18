@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>GridWise — Operator Console</title>
+<style>
+  :root { color-scheme: dark; --bg:#0f1419; --panel:#161d26; --line:#263241; --text:#e6edf3; --muted:#8b98a9; --accent:#4cc38a; --warn:#e5534b; }
+  * { box-sizing: border-box; }
+  body { margin:0; font:14px/1.5 ui-sans-serif,system-ui,"Segoe UI",sans-serif; background:var(--bg); color:var(--text); }
+  header { padding:16px 24px; border-bottom:1px solid var(--line); display:flex; gap:12px; align-items:baseline; flex-wrap:wrap; }
+  h1 { font-size:18px; margin:0; } header span { color:var(--muted); font-size:13px; }
+  main { display:grid; grid-template-columns:minmax(320px,420px) 1fr; gap:16px; padding:16px 24px; align-items:start; }
+  @media (max-width:900px){ main { grid-template-columns:1fr; } }
+  .panel { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:14px; }
+  textarea { width:100%; height:340px; background:#0b1017; color:var(--text); border:1px solid var(--line); border-radius:8px; padding:10px; font:12px/1.45 ui-monospace,Consolas,monospace; resize:vertical; }
+  button, select { background:#22303f; color:var(--text); border:1px solid var(--line); border-radius:8px; padding:8px 12px; font:inherit; cursor:pointer; }
+  button.primary { background:var(--accent); color:#06231a; border-color:var(--accent); font-weight:600; }
+  button:disabled { opacity:.55; cursor:default; }
+  .row { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px; align-items:center; }
+  .cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; margin-bottom:14px; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:12px; }
+  .card b { display:block; font-size:22px; font-weight:600; } .card span { color:var(--muted); font-size:12px; }
+  table { width:100%; border-collapse:collapse; font-variant-numeric:tabular-nums; }
+  th, td { padding:5px 8px; border-bottom:1px solid var(--line); text-align:right; font-size:13px; }
+  th:first-child, td:first-child, th:nth-child(4), td:nth-child(4) { text-align:left; }
+  th { color:var(--muted); font-weight:500; position:sticky; top:0; background:var(--panel); }
+  .scroll { max-height:520px; overflow:auto; }
+  .tag { display:inline-block; padding:1px 7px; border-radius:99px; font-size:12px; background:#22303f; }
+  .charge { background:#1d3b2a; color:#7ee2ac; } .discharge { background:#3b2620; color:#ffab95; }
+  .err { border-color:var(--warn); color:#ffb4ae; }
+  pre { margin:0; white-space:pre-wrap; word-break:break-word; font:12px/1.5 ui-monospace,Consolas,monospace; }
+  .muted { color:var(--muted); }
+  h2 { font-size:14px; margin:0 0 8px; color:var(--muted); font-weight:600; text-transform:uppercase; letter-spacing:.04em; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<!-- React from CDN keeps the demo build-free; the judge endpoints never touch this page. -->
+<script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/htm@3.1.1/dist/htm.umd.js" crossorigin></script>
+<script>
+const { useState, useEffect } = React;
+const html = htm.bind(React.createElement);
+const n = (v, d = 2) => (typeof v === 'number' ? v.toFixed(d) : '—');
+
+function App() {
+  const [samples, setSamples] = useState([]);
+  const [text, setText] = useState('');
+  const [result, setResult] = useState(null);
+  const [error, setError] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [ms, setMs] = useState(null);
+
+  useEffect(() => {
+    fetch('/api/sample-cases')
+      .then((r) => (r.ok ? r.json() : { cases: [] }))
+      .then((d) => {
+        setSamples(d.cases || []);
+        if (d.cases && d.cases[0]) setText(JSON.stringify(d.cases[0].input, null, 2));
+      })
+      .catch(() => {});
+  }, []);
+
+  async function submit() {
+    setBusy(true); setError(null); setResult(null);
+    const t0 = Date.now();
+    try {
+      const res = await fetch('/optimize-energy', {
+        method: 'POST', headers: { 'content-type': 'application/json' }, body: text,
+      });
+      const body = await res.json();
+      setMs(Date.now() - t0);
+      if (!res.ok) setError('HTTP ' + res.status + ' — ' + (body.error || 'request failed'));
+      else setResult(body);
+    } catch (e) {
+      setError('Request failed: ' + e.message);
+    } finally { setBusy(false); }
+  }
+
+  return html`
+    <header>
+      <h1>GridWise — Operator Console</h1>
+      <span>demo surface for <code>POST /optimize-energy</code>; the judge API works without it</span>
+    </header>
+    <main>
+      <div class="panel">
+        <div class="row">
+          <select onChange=${(e) => e.target.value !== '' && setText(JSON.stringify(samples[+e.target.value].input, null, 2))}>
+            <option value="">Load a public sample…</option>
+            ${samples.map((c, i) => html`<option key=${c.id} value=${i}>${c.id} — ${c.label}</option>`)}
+          </select>
+          <button class="primary" disabled=${busy} onClick=${submit}>${busy ? 'Optimizing…' : 'Optimize'}</button>
+        </div>
+        <textarea value=${text} onChange=${(e) => setText(e.target.value)} spellcheck="false" aria-label="Scenario JSON"></textarea>
+      </div>
+
+      <div>
+        ${error && html`<div class="panel err" style=${{ marginBottom: '14px' }}><b>Controlled API error</b><div>${error}</div></div>`}
+        ${!result && !error && html`<div class="panel muted">Submit a scenario to see the interpreted directives and the 24-hour plan.</div>`}
+        ${result && html`
+          <div class="cards">
+            <div class="card"><span>Total grid</span><b>${n(result.total_grid_kwh)}</b><span>kWh</span></div>
+            <div class="card"><span>Total cost</span><b>${n(result.total_cost_bdt)}</b><span>BDT</span></div>
+            <div class="card"><span>Peak grid hour</span><b>${n(result.peak_grid_kwh)}</b><span>kWh</span></div>
+            <div class="card"><span>Round trip</span><b>${ms}</b><span>ms</span></div>
+          </div>
+          <div class="panel" style=${{ marginBottom: '14px' }}>
+            <h2>Directive interpretation</h2>
+            ${result.directive_interpretation.map((d) => html`
+              <div key=${d.note_index} style=${{ marginBottom: '8px' }}>
+                <span class="tag">note ${d.note_index}</span>${' '}
+                <span class="tag ${d.applies ? 'charge' : ''}">${d.directive_type}</span>${' '}
+                <span class="muted">applies: ${String(d.applies)}</span>
+                <pre class="muted">${JSON.stringify(d.structured_adjustment)}</pre>
+                <div>${d.explanation}</div>
+              </div>`)}
+          </div>
+          <div class="panel" style=${{ marginBottom: '14px' }}><h2>Plan summary</h2><div>${result.plan_summary}</div></div>
+          <div class="panel">
+            <h2>24-hour plan</h2>
+            <div class="scroll"><table>
+              <thead><tr><th>Hour</th><th>Grid kWh</th><th>Solar kWh</th><th>Battery</th><th>kWh</th><th>Battery after</th></tr></thead>
+              <tbody>
+                ${result.hourly_plan.map((p) => html`
+                  <tr key=${p.hour}>
+                    <td>${String(p.hour).padStart(2, '0')}:00</td>
+                    <td>${n(p.grid_kwh)}</td><td>${n(p.solar_used_kwh)}</td>
+                    <td><span class="tag ${p.battery_action}">${p.battery_action}</span></td>
+                    <td>${n(p.battery_kwh)}</td><td>${n(p.battery_energy_after_kwh)}</td>
+                  </tr>`)}
+              </tbody>
+            </table></div>
+          </div>`}
+      </div>
+    </main>`;
+}
+ReactDOM.createRoot(document.getElementById('root')).render(html`<${App} />`);
+</script>
+</body>
+</html>

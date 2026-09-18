@@ -1,0 +1,33 @@
+# Dependencies
+node_modules/
+
+# Secrets — never commit. .env holds the real provider key and Atlas password.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Logs and test output
+*.log
+npm-debug.log*
+coverage/
+.nyc_output/
+
+# Local tooling that is not part of the submission
+.agents/
+
+# Editor / OS noise
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# AI build prompts — not source, not required deliverables. See README §9 for tool credits.
+# Remove these two lines if you want them published.
+goal.md
+AGENTS.md
+
+
