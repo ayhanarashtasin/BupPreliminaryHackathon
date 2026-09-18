@@ -99,7 +99,7 @@ cannot contain.
 | No unhandled rejection kills the process | Evaluation.md Gate G | `process.on('unhandledRejection')`, async route try/catch | `server/index.js` | done |
 | No secret leakage in responses or logs | Evaluation.md §10.11, Gate J | `server/index.js`, `server/llm.js` | `test/api.test.js`; container log inspection | done |
 | p95 ≤ 5 s target | Evaluation.md §10.8 | one batched call, clamped timeout, in-process LP, no DB on the path | p95 varies with free-tier throttling: 2.5 s / 4.7 s / 8.4 s across three real runs. Not reliably ≤5 s on the free key | partial |
-| Provider rate limits absorbed | Evaluation.md §5.3, §10.9 | `429` + `Retry-After` back-off inside `LLM_BUDGET_MS` (`server/llm.js`) | observed recovering from free-tier `429`s (SAMPLE-10, 4.7 s) | done |
+| Provider rate limits absorbed | Evaluation.md §5.3, §10.9 | round-robin key pool with per-key cooldowns, then `Retry-After` back-off inside `LLM_BUDGET_MS` (`server/llm.js`) | `test/llm.test.js` (rotation on 429/401); 10/10 public cases through a 5-key pool, p95 1.5 s | done |
 | Interpretation can never outlive the budget | Evaluation.md §10.7, Gate F | every attempt clamped to the remaining budget (`attemptTimeout`, `server/llm.js`) | `test/llm.test.js` (clamp + early-stop) | done |
 | DB never on the judge path | goal.md §4.3 | `server/db.js` fire-and-forget, post-response | `npm test` runs with no `MONGODB_URI`; Atlas write/read verified separately | done |
 | Binds `0.0.0.0`, documented port | Evaluation.md §3.6 | `server/index.js`, `Dockerfile` | container run on `-p 8080:8080` | done |

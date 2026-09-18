@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseModelJson, interpretNotes, llmConfig, attemptTimeout, InterpretationError } from '../server/llm.js';
+import { parseModelJson, interpretNotes, llmConfig, attemptTimeout, pickKey, parkKey, msUntilAKeyIsFree, _resetKeyPool, InterpretationError } from '../server/llm.js';
 import { SYSTEM_PROMPT, buildUserPrompt } from '../server/prompt.js';
 import { scenario, directive, noOp } from './fixtures.js';
 
@@ -102,4 +102,87 @@ test('provider configuration is validated and never hard-coded', () => {
   assert.equal(cfg.model, 'llama-3.3-70b-versatile');
   assert.equal(cfg.baseUrl, 'https://api.groq.com/openai/v1');
   assert.equal(cfg.maxAttempts, 2);
+});
+
+
+test('several comma-separated keys become a pool', () => {
+  const cfg = llmConfig({ GROQ_API_KEY: 'a, b ,c,', GROQ_MODEL: 'm' });
+  assert.deepEqual(cfg.apiKeys, ['a', 'b', 'c']); // trimmed, blanks dropped
+  assert.throws(() => llmConfig({ GROQ_API_KEY: ' , ', GROQ_MODEL: 'm' }), /GROQ_API_KEY is required/);
+});
+
+test('the key pool round-robins, skips rate-limited keys, and reports when all are parked', () => {
+  _resetKeyPool();
+  const keys = ['k1', 'k2', 'k3'];
+
+  // Round-robin: three consecutive picks cover every key exactly once.
+  const first = [pickKey(keys), pickKey(keys), pickKey(keys)];
+  assert.deepEqual([...first].sort(), keys, `expected each key once, got ${first}`);
+
+  // A parked key is skipped while it cools down.
+  parkKey('k2', 60);
+  for (let i = 0; i < 6; i++) assert.notEqual(pickKey(keys), 'k2');
+
+  // With every key parked the pool reports empty and says how long until one frees up.
+  parkKey('k1', 60);
+  parkKey('k3', 60);
+  assert.equal(pickKey(keys), null);
+  const wait = msUntilAKeyIsFree(keys);
+  assert.ok(wait > 0 && wait <= 60_000, `wait ${wait}ms`);
+
+  // Cooldowns expire: a key parked in the past is usable again.
+  parkKey('k1', 1);
+  assert.equal(pickKey(keys, Date.now() + 2000), 'k1');
+  _resetKeyPool();
+});
+
+test('a rate-limited key is parked and another key serves the request', async () => {
+  _resetKeyPool();
+  const seen = [];
+  let limited = null;
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async (_url, init) => {
+    const key = init.headers.authorization.replace('Bearer ', '');
+    seen.push(key);
+    limited ??= key; // whichever key the round-robin hands out first is the rate-limited one
+    return key === limited
+      ? new Response('{}', { status: 429, headers: { 'retry-after': '30' } })
+      : new Response(JSON.stringify({ choices: [{ message: { content: good } }] }), { status: 200 });
+  };
+  try {
+    const config = { baseUrl: 'https://example.invalid/v1', apiKeys: ['k1', 'k2'], model: 'm', timeoutMs: 5000, maxAttempts: 1, budgetMs: 20000 };
+    const directives = await interpretNotes({ notes, battery, config });
+    assert.equal(directives.length, 2, 'the request still succeeded');
+    assert.equal(seen.length, 2, `one 429 then one success, got ${seen.length} calls`);
+    assert.equal(seen[0], limited);
+    assert.notEqual(seen[1], limited, 'the retry used the other key, not the parked one');
+  } finally {
+    globalThis.fetch = realFetch;
+    _resetKeyPool();
+  }
+});
+
+test('a rejected key is parked too, so one bad key cannot fail every request', async () => {
+  _resetKeyPool();
+  const seen = [];
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async (_url, init) => {
+    const key = init.headers.authorization.replace('Bearer ', '');
+    seen.push(key);
+    return key === 'revoked'
+      ? new Response('{}', { status: 401 })
+      : new Response(JSON.stringify({ choices: [{ message: { content: good } }] }), { status: 200 });
+  };
+  try {
+    const config = { baseUrl: 'https://example.invalid/v1', apiKeys: ['revoked', 'working'], model: 'm', timeoutMs: 5000, maxAttempts: 1, budgetMs: 20000 };
+    for (let i = 0; i < 3; i++) {
+      const d = await interpretNotes({ notes, battery, config });
+      assert.equal(d.length, 2);
+    }
+    // The revoked key is tried at most once, then parked for the rest of the run.
+    assert.ok(seen.filter((k) => k === 'revoked').length <= 1, `revoked key retried: ${seen}`);
+  } finally {
+    globalThis.fetch = realFetch;
+    _resetKeyPool();
+  }
 });

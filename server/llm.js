@@ -19,16 +19,21 @@ export function llmConfig(env = process.env) {
   const p = PROVIDERS[name];
   if (!p) throw new Error(`unsupported LLM_PROVIDER "${name}"`);
   const baseUrl = env.LLM_BASE_URL || p.baseUrl;
-  const apiKey = env[p.keyEnv] || env.LLM_API_KEY;
+  // One key, or several comma-separated. Several free-tier keys behave like one larger
+  // per-minute token budget: see the key pool below.
+  const apiKeys = String(env[p.keyEnv] || env.LLM_API_KEY || '')
+    .split(',')
+    .map((k) => k.trim())
+    .filter(Boolean);
   const model = env[p.modelEnv] || env.LLM_MODEL || p.defaultModel;
   if (!baseUrl) throw new Error(`LLM_BASE_URL is required for LLM_PROVIDER=${name}`);
   if (!model) throw new Error(`${p.modelEnv} (or LLM_MODEL) is required for LLM_PROVIDER=${name}`);
-  if (!apiKey) throw new Error(`${p.keyEnv} is required for LLM_PROVIDER=${name}`);
+  if (!apiKeys.length) throw new Error(`${p.keyEnv} is required for LLM_PROVIDER=${name}`);
   return {
     name,
     model,
     baseUrl,
-    apiKey,
+    apiKeys,
     timeoutMs: Number(env.LLM_TIMEOUT_MS) || 9000,
     maxAttempts: Math.max(1, Number(env.LLM_MAX_ATTEMPTS) || 2),
     // Hard ceiling for the whole interpretation step, well inside the 30 s judge timeout.
@@ -38,6 +43,38 @@ export function llmConfig(env = process.env) {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const MIN_ATTEMPT_MS = 2500; // below this there is not enough time left for a retry to be worth starting
+const BAD_KEY_COOLDOWN_S = 300; // a rejected key is parked rather than retried on every request
+
+// --- API key pool -------------------------------------------------------------------------
+// Requests round-robin across the configured keys, and a key that reports a rate limit is
+// skipped until its own Retry-After has elapsed. With N free-tier keys the service sees
+// roughly N times the per-minute token budget of one.
+// Keys are never logged; diagnostics refer to them by position only.
+const cooldownUntil = new Map();
+let cursor = Math.floor(Math.random() * 1e6); // spread the starting key across processes
+
+/** @returns {string|null} the next usable key, or null when every key is cooling down. */
+export function pickKey(keys, now = Date.now()) {
+  for (let i = 0; i < keys.length; i++) {
+    const index = (cursor + i) % keys.length;
+    const key = keys[index];
+    if ((cooldownUntil.get(key) ?? 0) <= now) {
+      cursor = index + 1;
+      return key;
+    }
+  }
+  return null;
+}
+
+export function parkKey(key, seconds) {
+  cooldownUntil.set(key, Date.now() + Math.max(1, seconds) * 1000);
+}
+
+/** Milliseconds until the first key becomes usable again. */
+export const msUntilAKeyIsFree = (keys, now = Date.now()) =>
+  Math.min(...keys.map((k) => cooldownUntil.get(k) ?? 0)) - now;
+
+export const _resetKeyPool = () => cooldownUntil.clear(); // tests only
 
 /** Remaining time for one provider call: never more than the per-attempt timeout, never past the deadline. */
 export const attemptTimeout = (config, deadline, now = Date.now()) => Math.min(config.timeoutMs, deadline - now);
@@ -47,9 +84,21 @@ async function chat(config, messages, deadline, extras = true) {
   // budget, so no retry sequence can run past it and into the judge's per-request timeout.
   const timeout = attemptTimeout(config, deadline);
   if (timeout <= 0) throw new InterpretationError('interpretation budget exhausted');
+
+  const apiKey = pickKey(config.apiKeys);
+  if (!apiKey) {
+    // Every key is cooling down. Wait for the first one to free up if the budget allows.
+    const waitMs = Math.max(0, msUntilAKeyIsFree(config.apiKeys)) + 250;
+    if (Date.now() + waitMs + MIN_ATTEMPT_MS > deadline) {
+      throw new InterpretationError('all provider keys are rate limited');
+    }
+    await sleep(waitMs);
+    return chat(config, messages, deadline, extras);
+  }
+
   const res = await fetch(`${config.baseUrl}/chat/completions`, {
     method: 'POST',
-    headers: { 'content-type': 'application/json', authorization: `Bearer ${config.apiKey}` },
+    headers: { 'content-type': 'application/json', authorization: `Bearer ${apiKey}` },
     body: JSON.stringify({
       model: config.model,
       temperature: 0,
@@ -69,14 +118,12 @@ async function chat(config, messages, deadline, extras = true) {
     // A 400 usually means this model rejects response_format/reasoning_effort; the prompt already
     // demands a bare JSON object, so retry once without the extras rather than failing.
     if (res.status === 400 && extras) return chat(config, messages, deadline, false);
-    // Rate limited: wait the provider's own Retry-After if the retry still fits the budget.
+    // Rate limited, or the key itself was rejected: park that key and immediately try the next
+    // one. Only when every key is cooling down does the pool wait, and only inside the budget.
     // A slow success beats a 5xx — a failed case loses interpretation, application and cost credit.
-    if (res.status === 429) {
-      const waitMs = Math.ceil((Number(res.headers.get('retry-after')) || 2) * 1000) + 250;
-      if (Date.now() + waitMs + MIN_ATTEMPT_MS <= deadline) {
-        await sleep(waitMs);
-        return chat(config, messages, deadline, extras);
-      }
+    if (res.status === 429 || res.status === 401 || res.status === 403) {
+      parkKey(apiKey, res.status === 429 ? Number(res.headers.get('retry-after')) || 2 : BAD_KEY_COOLDOWN_S);
+      if (Date.now() + MIN_ATTEMPT_MS <= deadline) return chat(config, messages, deadline, extras);
     }
     // Body may echo request details; never surface it to the caller.
     throw new InterpretationError(`provider responded with HTTP ${res.status}`);

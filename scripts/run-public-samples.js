@@ -49,6 +49,8 @@ function compareInterpretation(got, want) {
 
 let failed = 0;
 let ratioSum = 0;
+let ratioCount = 0;
+let undefinedRatio = 0;
 const latencies = [];
 
 console.log(`GridWise public sample runner -> ${BASE}\n`);
@@ -85,11 +87,22 @@ for (const c of pack.cases) {
       for (const [k, v] of Object.entries(replay.totals)) {
         if (!near(body[k], v)) problems.push(`${k} reported ${body[k]}, recalculated ${v}`);
       }
-      const ratio = Math.min(1, c.expected_output.total_cost_bdt / replay.totals.total_cost_bdt);
-      ratioSum += ratio;
+      // Evaluation.md §10.3: both costs within tolerance of 0 -> quality_ratio = 1. The guide's
+      // text for "organizer optimal is 0 but team cost is not" is truncated, so that branch is
+      // deliberately not invented here: the case is reported and left out of the average.
+      const refCost = c.expected_output.total_cost_bdt;
+      const ourCost = replay.totals.total_cost_bdt;
+      let ratio = null;
+      if (Math.abs(refCost) <= TOL && Math.abs(ourCost) <= TOL) ratio = 1;
+      else if (Math.abs(refCost) > TOL) ratio = Math.min(1, refCost / ourCost);
+      if (ratio === null) undefinedRatio++;
+      else {
+        ratioSum += ratio;
+        ratioCount++;
+      }
       console.log(
-        `${problems.length ? 'FAIL' : ' OK '} ${c.id}  ${String(ms).padStart(5)}ms  cost ${replay.totals.total_cost_bdt.toFixed(2)} ` +
-          `(reference ${c.expected_output.total_cost_bdt}) quality ${(ratio * 100).toFixed(1)}%  ${c.label}`,
+        `${problems.length ? 'FAIL' : ' OK '} ${c.id}  ${String(ms).padStart(5)}ms  cost ${ourCost.toFixed(2)} ` +
+          `(reference ${refCost}) quality ${ratio === null ? 'n/a' : (ratio * 100).toFixed(1) + '%'}  ${c.label}`,
       );
     }
   }

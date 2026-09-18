@@ -267,7 +267,7 @@ representative, because end-to-end latency is dominated by the provider call.
 |---|---|---|---|
 | `PORT` | no | `8080` | HTTP port; the service always binds `0.0.0.0` |
 | `LLM_PROVIDER` | no | `groq` | `groq` \| `openai` \| `openai_compatible` |
-| `GROQ_API_KEY` | **yes** (groq) | — | Groq credential |
+| `GROQ_API_KEY` | **yes** (groq) | — | Groq credential. One key, or several comma-separated — see the key pool below |
 | `GROQ_MODEL` | no | `openai/gpt-oss-120b` | Groq model id |
 | `OPENAI_API_KEY` / `OPENAI_MODEL` | for `openai` | `gpt-4o-mini` | OpenAI credential/model |
 | `LLM_BASE_URL` / `LLM_API_KEY` / `LLM_MODEL` | for `openai_compatible` | — | Any other OpenAI-compatible endpoint (Together, OpenRouter, vLLM, Ollama, …) |
@@ -279,6 +279,24 @@ representative, because end-to-end latency is dominated by the provider call.
 
 All three provider modes speak the OpenAI chat-completions dialect, so switching providers is an
 environment change only. No key, model id, or endpoint is hard-coded anywhere in the source.
+
+### API key pool
+
+The provider key variable accepts a comma-separated list:
+
+```bash
+GROQ_API_KEY=gsk_one,gsk_two,gsk_three
+```
+
+Requests round-robin across the pool, and a key that returns `429` is parked until its own
+`Retry-After` elapses rather than retried. N free-tier keys therefore behave like roughly N times
+the per-minute token budget of one — with Groq's 8,000 TPM free tier, five keys give ≈40,000 TPM.
+A key that returns `401`/`403` is parked for five minutes, so one revoked or mistyped key cannot
+fail every request. Only when every key is cooling down does the pool wait, and only inside
+`LLM_BUDGET_MS`. Keys are never logged; diagnostics refer to them by position.
+
+State is per process, so on serverless each instance keeps its own cooldowns. That still spreads
+load (each process starts at a random offset in the pool) but does not coordinate across instances.
 
 ### MongoDB Atlas (optional)
 
