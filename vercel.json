@@ -1,0 +1,9 @@
+{
+  "rewrites": [{ "source": "/(.*)", "destination": "/api" }],
+  "functions": {
+    "api/index.js": {
+      "maxDuration": 60,
+      "includeFiles": "{client/**,BUP_CSE_FEST_2026_Preli_Public_Sample_Cases.json}"
+    }
+  }
+}

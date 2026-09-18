@@ -310,7 +310,22 @@ docker run --rm -p 8080:8080 -e GROQ_API_KEY=<your key> <REGISTRY>/<NAMESPACE>/g
 
 ---
 
-## 6. React demo console
+## 6. Vercel deployment
+
+`api/index.js` + `vercel.json` adapt the same Express app to Vercel's serverless runtime — no
+pipeline code changes. Import the repo with the **Other** framework preset, leave Root Directory at
+the repository root, and add `GROQ_API_KEY` (plus `LLM_MODEL`) as environment variables.
+
+`vercel.json` sets `maxDuration: 60` so a `429` back-off can still finish inside `LLM_BUDGET_MS`. If
+the plan caps function duration lower (classic Hobby serverless was 10 s), set `LLM_BUDGET_MS` below
+that cap so the request fails in a controlled way rather than being killed mid-flight.
+
+Leave `MONGODB_URI` unset on serverless: every cold start would open a new Atlas connection, and the
+run history is an optional demo feature that the judge endpoints never touch.
+
+---
+
+## 7. React demo console
 
 `GET /` serves a single-file React 18 dashboard from the same service: load a public sample or paste
 a scenario, submit it, and see the interpreted directives, the plan summary, the 24-hour table and the
@@ -322,7 +337,7 @@ dashboard, no browser interaction is involved in `GET /health` or `POST /optimiz
 
 ---
 
-## 7. Security
+## 8. Security
 
 * No API keys, tokens, `.env` files, or credentials are committed. `.gitignore` and `.dockerignore`
   exclude `.env*` (except `.env.example`, which contains names only).
@@ -335,7 +350,7 @@ dashboard, no browser interaction is involved in `GET /health` or `POST /optimiz
 
 ---
 
-## 8. Known limitations
+## 9. Known limitations
 
 * **A model credential is mandatory at runtime.** Without a valid key `/health` still returns `ok`,
   but `/optimize-energy` returns a controlled `500`. There is deliberately no offline fallback
@@ -369,7 +384,7 @@ dashboard, no browser interaction is involved in `GET /health` or `POST /optimiz
 
 ---
 
-## 9. Credits
+## 10. Credits
 
 | Dependency | Use | License |
 |---|---|---|
