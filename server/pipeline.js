@@ -78,8 +78,13 @@ export async function runPipeline(body, deps = {}) {
   try {
     plan = await optimize({ hours, battery, constraints });
   } catch (err) {
-    if (err instanceof InfeasibleError) throw new PipelineError(500, 'no valid 24-hour schedule could be produced', err.message);
-    throw err;
+    if (err instanceof PipelineError) throw err;
+    // Infeasible model, or the solver itself failing to load/run: both are controlled here.
+    throw new PipelineError(
+      500,
+      'no valid 24-hour schedule could be produced',
+      err instanceof InfeasibleError ? `infeasible: ${err.message}` : `solver failure: ${err?.message ?? err}`,
+    );
   }
 
   const replay = replayPlan({ hours, battery, directives, plan });
