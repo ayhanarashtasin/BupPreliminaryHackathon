@@ -93,8 +93,8 @@ never returned as a success.
 Requires **Node.js ≥ 22.9** (the npm scripts use `--env-file-if-exists`) and a model API key.
 
 ```bash
-git clone <this-repository>
-cd BUP_Preli
+git clone https://github.com/ayhanarashtasin/BupPreliminaryHackathon.git
+cd BupPreliminaryHackathon
 npm install
 
 cp .env.example .env          # Windows: copy .env.example .env
@@ -427,14 +427,17 @@ dashboard, no browser interaction is involved in `GET /health` or `POST /optimiz
   but `/optimize-energy` returns a controlled `500`. There is deliberately no offline fallback
   interpreter: a keyword matcher would violate the mandatory-LLM rule, and guessing a directive is
   worse than failing loudly.
-* **Provider token budget is the real capacity limit.** Groq's free tier allows **8,000 tokens per
-  minute**; one request costs ≈1,100 tokens, so roughly 7 requests/minute before `429`s start. The
-  service absorbs a `429` by waiting the provider's `Retry-After` when the wait still fits
-  `LLM_BUDGET_MS`, but sustained judge traffic needs a paid Groq tier. **Upgrade the key before the
-  evaluation window.**
-* **Latency is provider-bound.** Validation, LP solve and replay take single-digit milliseconds
-  (4–90 ms across the public pack); everything else is the model round trip. Measured p95 end-to-end:
-  2.5 s. Budget: one batched call, `LLM_TIMEOUT_MS=9000`, ≤2 attempts, `LLM_BUDGET_MS=25000` overall.
+* **Provider token budget is the capacity limit.** Groq's free tier allows **8,000 tokens per
+  minute per key** and one request costs ≈1,100 tokens, so a single key sustains roughly 7
+  requests/minute. The deployment runs a five-key pool (§4), giving ≈40,000 TPM: 20 live requests
+  back-to-back complete with no rate-limit stall. Beyond that the pool waits out the shortest
+  `Retry-After` inside `LLM_BUDGET_MS` — a slow success rather than a failure — and a paid tier
+  would remove the ceiling entirely. Pool cooldowns are per process, so serverless instances do not
+  coordinate with each other.
+* **Latency is provider-bound.** Validation, LP solve and replay take single-digit milliseconds;
+  everything else is the model round trip. Measured against the live deployment with the key pool:
+  **p95 2.9 s and 4.0 s** over two consecutive 10-case runs, and **p95 4.4 s** over the 200-case
+  suite. Budget: one batched call, `LLM_TIMEOUT_MS=9000`, ≤2 attempts, `LLM_BUDGET_MS=25000` overall.
 * **Equivalent optimal schedules.** The LP returns *an* optimal schedule; on tied costs the hourly
   actions may differ from the published reference (e.g. SAMPLE-01 differs in `peak_grid_kwh` at
   identical cost and identical total grid import). This is explicitly allowed by the sample pack.
