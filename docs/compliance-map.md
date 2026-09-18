@@ -105,7 +105,9 @@ cannot contain.
 | Binds `0.0.0.0`, documented port | Evaluation.md §3.6 | `server/index.js`, `Dockerfile` | container run on `-p 8080:8080` | done |
 | Docker image builds, runs, reaches `/health` | Evaluation.md §10.15 | `Dockerfile`, `.dockerignore` | `gridwise:1.0.0`: `/health` → 200 in 16 ms, real `/optimize-energy` → 200 in 745 ms | done |
 | No secrets in the image | Evaluation.md §3.6 | no `COPY .env`, `.dockerignore` excludes `.env*` | image inspected | done |
-| Public registry tag/digest | Evaluation.md §4 | README §5 placeholder | — | external (push required) |
+| Public registry tag/digest | Evaluation.md §4 | `ghcr.io/ayhanarashtasin/gridwise:1.0.0`, digest `sha256:ddfc93b0…742aef5`, both in README §5 | anonymous GHCR token + manifest fetch returns 200 and the digest matches the README exactly | done |
+| Documented pull/run reaches `/health` | Evaluation.md §10.15 | README §5 | pulled fresh, ran the documented command: `/health` 200 within 3 s, real `/optimize-energy` returned the reference-optimal plan with battery neutrality | done |
+| Image has no baked-in credentials, non-root | Evaluation.md §3.6 | `Dockerfile` | `docker inspect`: env is PATH/NODE_VERSION/YARN_VERSION/NODE_ENV/PORT only; `User=node` | done |
 | Public base URL, no login/VPN | Evaluation.md §5.1 | no auth middleware anywhere | live at `https://bup-preliminary-hackathon.vercel.app`; 10/10 public cases from an external client, p95 2.3 s | done |
 | Self-contained README with quickstart, curl, env names, model, solver, Docker, limits, credits | Evaluation.md §3.5, §9.7 | `README.md` | — | done |
 | Public-sample runner, one copy-paste command | goal.md §18 | `scripts/run-public-samples.js`, `npm run samples` | 10/10, 100% cost quality, real `openai/gpt-oss-120b` | done |
