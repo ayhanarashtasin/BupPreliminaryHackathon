@@ -111,6 +111,13 @@ cannot contain.
 | Public-sample runner, one copy-paste command | goal.md §18 | `scripts/run-public-samples.js`, `npm run samples` | 10/10, 100% cost quality, real `openai/gpt-oss-120b` | done |
 | 3-minute architecture video | Evaluation.md §3.7 | — | — | external (team deliverable) |
 
+## Beyond the required checks
+
+| What | Evidence |
+|---|---|
+| 200-scenario self-generated stress suite (GOOD/BAD/WORST/EDGE) | `scripts/generate-200-sample-cases.js`, `BUP_CSE_FEST_2026_Preli_200_Sample_Cases.json`; 200/200 pass at 100% cost quality against the live deployment, every plan replayed against its ground-truth directives — `test/200-sample-test-results.md` |
+| Live endpoint suite, opt-in so offline `npm test` stays green | `test/live-api.test.js` (skips unless `BASE_URL` is set) |
+
 ## Deliberate non-implementations
 
 * The judge's scoring formula is not reimplemented. The participant guide's `quality_ratio` branch for

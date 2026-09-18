@@ -31,3 +31,7 @@ goal.md
 AGENTS.md
 
 
+
+# Byte-identical duplicates of files that are already tracked under another name
+test/200_sample_cases.json
+BUP_CSE_FEST_2026_Preli_Public_Sample_Cases.original.json

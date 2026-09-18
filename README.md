@@ -250,6 +250,48 @@ Nine additional paraphrases that appear nowhere in the public pack — "down by 
 "a quarter of the pack's capacity", "between 5 and 7 in the evening", "the two hours starting at
 6 PM", "from 2 until 5" — were also interpreted correctly, 9/9.
 
+### Extended 200-case stress suite
+
+Ten public cases are not enough to trust a pipeline against hidden inputs, so this repository also
+carries a **self-generated** 200-scenario suite. **These are our own cases, not organizer material** —
+`scripts/generate-200-sample-cases.js` builds them, and the organizer's ten remain untouched in
+`BUP_CSE_FEST_2026_Preli_Public_Sample_Cases.json`.
+
+| Category | Cases | What it stresses |
+|---|---:|---|
+| OFFICIAL | 10 | the organizer's published cases |
+| GOOD | 50 | ordinary directive mixes across varied demand, solar, tariff and battery profiles |
+| BAD | 70 | awkward phrasings, distractors, unit and percentage traps |
+| WORST | 50 | tight reserves, hard caps, near-infeasible combinations |
+| EDGE | 20 | boundary windows and natural-language traps (midnight wrap, single-hour windows) |
+
+```bash
+node scripts/run-200-samples.js https://<base-url>   # run the suite
+npm run test:200                                     # run it and write the report files
+```
+
+Latest full run against the live deployment — `test/200-sample-test-results.md` has the per-case
+table, and `test/200-sample-test-results.json` the raw data:
+
+| | |
+|---|---|
+| Pass rate | **200 / 200 (100%)** |
+| Average cost quality | **100%** |
+| Median / p95 / max latency | 1488 ms / 4439 ms / 23755 ms |
+
+Every returned plan was replayed against its case's ground-truth directives before being counted a
+pass. The 23.8 s maximum is a single request that waited out a provider rate limit — inside the 30 s
+judge timeout, and the reason the API key pool described in §4 exists.
+
+### Live endpoint suite
+
+`test/live-api.test.js` exercises a deployed service. It is **opt-in** and skips by default so that
+`npm test` never depends on the network or a provider key:
+
+```bash
+BASE_URL=https://bup-preliminary-hackathon.vercel.app npm test
+```
+
 ### Latency benchmark
 
 ```bash
