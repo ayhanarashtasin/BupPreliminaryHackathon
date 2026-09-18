@@ -369,9 +369,11 @@ curl http://localhost:8080/health          # {"status":"ok"}
 Registry image (published for the judges):
 
 ```bash
-docker pull <REGISTRY>/<NAMESPACE>/gridwise:1.0.0
-docker run --rm -p 8080:8080 -e GROQ_API_KEY=<your key> <REGISTRY>/<NAMESPACE>/gridwise:1.0.0
+docker pull ghcr.io/ayhanarashtasin/gridwise:1.0.0
+docker run --rm -p 8080:8080 -e GROQ_API_KEY=<your key> ghcr.io/ayhanarashtasin/gridwise:1.0.0
 ```
+
+Immutable image: `ghcr.io/ayhanarashtasin/gridwise@sha256:ddfc93b01654ea6364e89f9369bd2208499368a77aa1a3cc64d87e59b742aef5`
 
 * Exposed port: `8080`. The process binds `0.0.0.0`.
 * Required at runtime: `GROQ_API_KEY` (or the equivalent variable for another provider).
