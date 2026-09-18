@@ -8,8 +8,16 @@ that interpretation with deterministic guardrails, feeds the validated directive
 programming optimizer, independently replays the resulting schedule, and returns the exact JSON
 contract defined in `project.md`.
 
+**Live service: <https://bup-preliminary-hackathon.vercel.app>**
+
+```bash
+curl https://bup-preliminary-hackathon.vercel.app/health
+# {"status":"ok"}
+```
+
 | | |
 |---|---|
+| Live base URL | `https://bup-preliminary-hackathon.vercel.app` |
 | Health endpoint | `GET /health` → `200 {"status":"ok"}` |
 | Primary endpoint | `POST /optimize-energy` |
 | Default port | `8080` (binds `0.0.0.0`) |
@@ -111,6 +119,9 @@ curl http://localhost:8080/health
 ```
 
 ### Optimize a scenario
+
+Against the live service, substitute `https://bup-preliminary-hackathon.vercel.app` for
+`http://localhost:8080` in the command below.
 
 ```bash
 curl -s -X POST http://localhost:8080/optimize-energy \
@@ -216,7 +227,7 @@ npm test
 # 2. End-to-end against a running service, including the real model call:
 npm start                                             # in one terminal
 npm run samples                                       # in another (defaults to http://localhost:8080)
-node scripts/run-public-samples.js https://<your-deployment>
+node scripts/run-public-samples.js https://bup-preliminary-hackathon.vercel.app
 ```
 
 The runner posts each case, compares `directive_interpretation` against the published ground truth

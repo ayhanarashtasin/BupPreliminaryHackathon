@@ -106,7 +106,7 @@ cannot contain.
 | Docker image builds, runs, reaches `/health` | Evaluation.md §10.15 | `Dockerfile`, `.dockerignore` | `gridwise:1.0.0`: `/health` → 200 in 16 ms, real `/optimize-energy` → 200 in 745 ms | done |
 | No secrets in the image | Evaluation.md §3.6 | no `COPY .env`, `.dockerignore` excludes `.env*` | image inspected | done |
 | Public registry tag/digest | Evaluation.md §4 | README §5 placeholder | — | external (push required) |
-| Public base URL, no login/VPN | Evaluation.md §5.1 | no auth middleware anywhere | — | external (hosting required) |
+| Public base URL, no login/VPN | Evaluation.md §5.1 | no auth middleware anywhere | live at `https://bup-preliminary-hackathon.vercel.app`; 10/10 public cases from an external client, p95 2.3 s | done |
 | Self-contained README with quickstart, curl, env names, model, solver, Docker, limits, credits | Evaluation.md §3.5, §9.7 | `README.md` | — | done |
 | Public-sample runner, one copy-paste command | goal.md §18 | `scripts/run-public-samples.js`, `npm run samples` | 10/10, 100% cost quality, real `openai/gpt-oss-120b` | done |
 | 3-minute architecture video | Evaluation.md §3.7 | — | — | external (team deliverable) |
